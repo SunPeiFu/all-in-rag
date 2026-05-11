@@ -16,7 +16,8 @@ doc = loader.load()
 # 2 文本分块 注意此处size和overlap参数大小 TODO SPF 此处需要研究下参数区别
 text_spliter = RecursiveCharacterTextSplitter(
     chunk_size=500,
-    chunk_overlap=100
+    chunk_overlap=100,
+    add_start_index = True # 记录chunk的元数据在在原始文档中的起始字符
 )
 chunks = text_spliter.split_documents(doc)
 
