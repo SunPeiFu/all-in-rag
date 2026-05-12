@@ -13,7 +13,7 @@ load_dotenv()
 
 markdown_path = "../../data/C1/markdown/easy-rl-chapter1.md"
 
-# 加载本地markdown文件
+# 加载本地markdown文件 使用Unstructured库中的MarkdownLoader
 loader = UnstructuredMarkdownLoader(markdown_path)
 docs = loader.load()
 
