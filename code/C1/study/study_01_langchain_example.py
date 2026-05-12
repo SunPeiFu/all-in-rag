@@ -8,6 +8,8 @@ from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 import os
 
+model_name = "qwen3.6-35b-a3b-mlx"
+
 # 1 加载文档 数据准备 (非结构化/半结构化/结构化)数据
 markdown_path = "./data/C1/markdown/easy-rl-chapter1.md"
 loader = UnstructuredMarkdownLoader(markdown_path)
@@ -24,8 +26,10 @@ chunks = text_spliter.split_documents(doc)
 # 3 设置向量化模型 TODO SPF 此处需要研究下参数区别
 embeddings = HuggingFaceEmbeddings(
     model_name="BAAI/bge-small-zh-v1.5",
-    model_kwargs={'device': 'cpu'},
+    model_kwargs={'device': 'mps'}, # 可以写cpu  Apple Silicon GPU(mps) 苹果m5芯片的加速
     encode_kwargs={'normalize_embeddings': True}
+    # normalize_embeddings=True 对生成的向量做归一化
+    # encode_kwargs 文本转向量的参数
 )
 
 # 4 向量库指定embedding模型 并加载chunk 
@@ -49,7 +53,7 @@ prompt = ChatPromptTemplate.from_template(
 
 # 6 初始化模型
 model = ChatOpenAI(
-    model="zai-org/glm-4.7-flash",
+    model= model_name,
     temperature=0.7,
     api_key=SecretStr("empty"),
     base_url="http://127.0.0.1:1234/v1",
@@ -73,7 +77,7 @@ print("模型返回type是:\n", answer.type)
 print("模型返回name是:\n", answer.name)
 print("模型返回id是:\n", answer.id)
 
-# 模型返回的结果
+# glm4.7 -> 模型返回的结果
 """
 模型返回的answer类型是:
  <class 'langchain_core.messages.ai.AIMessage'>
@@ -98,10 +102,38 @@ print("模型返回id是:\n", answer.id)
 
 """
 
+# qWen 3.6 35b a3b-mlx 返回结果 明显qWen更胜一筹
+"""
+型返回的answer类型是:
+ <class 'langchain_core.messages.ai.AIMessage'>
+模型返回content是:
+ 
+根据上下文，文中主要列举了以下几类例子：
+
+1. **强化学习/智能体相关例子**：
+   * DeepMind研发的走路智能体（如像人一样在曲折道路行走、举手保持平衡以加快速度，以及在加入扰动后变得更鲁棒）。
+   * 机械臂自动抓取（通过分布式训练让机械臂学会适用于不同形状物体的统一最优抓取算法）。
+
+2. **奖励的例子**：
+   * 象棋选手赢棋（得到正奖励）或输棋（得到负奖励）。
+
+3. **探索和利用的例子**：
+   * 选择餐馆（利用：去常去的熟悉餐馆；探索：搜索并尝试新餐馆）。
+   * 做广告（利用：直接采取最优广告策略；探索：更换新策略看效果）。
+   * 挖油（利用：在已知地方挖以确保出油；探索：去新地方挖，可能失败也可能发现大油田）。
+   * 玩游戏（利用：如玩《街头霸王》时固定采取蹲角落出脚的策略；探索：尝试新招式或放出“大招”）。
+模型返回response_metadata是:
+ {'token_usage': {'completion_tokens': 1859, 'prompt_tokens': 790, 'total_tokens': 2649, 'completion_tokens_details': {'accepted_prediction_tokens': None, 'audio_tokens': None, 'reasoning_tokens': 1623, 'rejected_prediction_tokens': None}, 'prompt_tokens_details': None}, 'model_name': 'qwen3.6-35b-a3b-mlx', 'system_fingerprint': 'qwen3.6-35b-a3b-mlx', 'id': 'chatcmpl-isf5n2dsgupyajqxogh0r', 'service_tier': None, 'finish_reason': 'stop', 'logprobs': None}
+模型返回type是:
+ ai
+模型返回name是:
+ None
+模型返回id是:
+ run--c405dc58-f2c9-410f-bee4-59ad908917d5-0
+
+"""
 
 
 
 
 
-#print("模型返回的答案是:\n", answer)
-# 返回
