@@ -1,6 +1,9 @@
 from unstructured.partition.auto import partition
 from collections import Counter
 
+"""
+注意 这个是拆文档 解析分档 分成 Title ,NarrativeText等 不是chunk
+"""
 
 # PDF文件路径
 pdf_path = "./data/C2/pdf/rag.pdf"
@@ -22,7 +25,8 @@ print(f"元素类型:{dict(types)}")
 
 
 for i, e in enumerate(elements):
-    print("当前元素index:{i}, 分类:{e.category}元素内容:{e}")
+    
+    print("当前元素index:{i}, 文本:{e.text}, 元数据信息:{e.metadata} \n 分类:{e.category} \n 元素内容:{}")
 # 获取一共多少个字符
 
 # 输出结果
