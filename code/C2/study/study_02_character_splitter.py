@@ -22,4 +22,4 @@ chunks = characterTextSplitter.split_documents(doc)
 print("总共分割的文档数量:", len(chunks))
 
 for i, e in enumerate(chunks[:10]):
-    print(f"当前的索引:{i}, 元素类型:{e.type}, 元素内容:{e.page_content}")
+    print(f"当前的索引:{i},元素长度:{len(e.page_content)} 元素类型:{e.type}, 元素内容:{e.page_content}")
