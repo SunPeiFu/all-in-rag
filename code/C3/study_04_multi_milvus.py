@@ -23,10 +23,16 @@ class Encoder:
                 model_path : str):
         self.model = Visualized_BGE(model_name_bge = model_name, model_weight = model_path)
         self.model.eval() # 切换到评估模式
-
-    def encode_query(self, image_path: str, text : str) ->list[float]:
+    def encode_query(self, text : str, image_path : str | None = None) ->list[float]:
         with torch.no_grad(): # no_grad 是啥意思
-            mm_embeddings = self.model.encode(image = image_path, text = text)
+            if image_path and text:
+                mm_embeddings = self.model.encode(image = image_path, text = text)
+            elif image_path and not text:
+                mm_embeddings = self.model.encode(image = image_path)
+            elif text and not image_path:
+                mm_embeddings = self.model.encode(text = text)
+            else :
+                return None
         return mm_embeddings.tolist()[0] # 此处的tolist区数组首个元素 是否合理
     
     def encode_image(self, image_path : str):
@@ -35,8 +41,8 @@ class Encoder:
         return mm_embeddings.tolist()[0]     
 
 # 3 把作为查询图和检索图 二者的结果做汇总 拼成一个大图
-def visualize_results(query_image_path: str, 
-                      retrieved_images: list, 
+def visualize_results(retrieved_images: list, 
+                      query_image_path: str | None = None, 
                       img_height: int = 300, 
                       img_width: int = 300, 
                       row_count: int = 3) -> np.ndarray:
@@ -44,31 +50,59 @@ def visualize_results(query_image_path: str,
     panoramic_width = img_width * row_count
     panoramic_height = img_height * row_count
     panoramic_image = np.full((panoramic_height, panoramic_width, 3), 255, dtype=np.uint8)
-    query_display_area = np.full((panoramic_height, img_width, 3), 255, dtype=np.uint8)
 
-    # 处理查询图像
-    query_pil = Image.open(query_image_path).convert("RGB")
-    query_cv = np.array(query_pil)[:, :, ::-1]
-    resized_query = cv2.resize(query_cv, (img_width, img_height))
-    bordered_query = cv2.copyMakeBorder(resized_query, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=(255, 0, 0))
-    query_display_area[img_height * (row_count - 1):, :] = cv2.resize(bordered_query, (img_width, img_height))
-    cv2.putText(query_display_area, "Query", (10, panoramic_height - 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
-    # 处理检索到的图像
+#######
+# 1. 先处理和拼接检索到的图像（右侧主画布）
     for i, img_path in enumerate(retrieved_images):
         row, col = i // row_count, i % row_count
+        # 防止传入的图片数量超过了画布格子总数 (row_count * row_count)
+        if row >= row_count:
+            break
+            
         start_row, start_col = row * img_height, col * img_width
         
-        retrieved_pil = Image.open(img_path).convert("RGB")
-        retrieved_cv = np.array(retrieved_pil)[:, :, ::-1]
-        resized_retrieved = cv2.resize(retrieved_cv, (img_width - 4, img_height - 4))
-        bordered_retrieved = cv2.copyMakeBorder(resized_retrieved, 2, 2, 2, 2, cv2.BORDER_CONSTANT, value=(0, 0, 0))
-        panoramic_image[start_row:start_row + img_height, start_col:start_col + img_width] = bordered_retrieved
-        
-        # 添加索引号
-        cv2.putText(panoramic_image, str(i), (start_col + 10, start_row + 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+        try:
+            retrieved_pil = Image.open(img_path).convert("RGB")
+            retrieved_cv = np.array(retrieved_pil)[:, :, ::-1]
+            resized_retrieved = cv2.resize(retrieved_cv, (img_width - 4, img_height - 4))
+            bordered_retrieved = cv2.copyMakeBorder(resized_retrieved, 2, 2, 2, 2, cv2.BORDER_CONSTANT, value=(0, 0, 0))
+            panoramic_image[start_row:start_row + img_height, start_col:start_col + img_width] = bordered_retrieved
+            
+            # 添加索引号
+            cv2.putText(panoramic_image, str(i), (start_col + 10, start_row + 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+        except Exception as e:
+            # 💡 增强健壮性：防止某张检索图片损坏导致整个程序崩溃
+            cv2.putText(panoramic_image, f"Error: {i}", (start_col + 10, start_row + img_height//2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
-    return np.hstack([query_display_area, panoramic_image])
+    # 2. 💡 核心修改：判断是否存在查询图像
+    if query_image_path is not None:
+        # 如果有 Query 图片，创建左侧展示区，并用 hstack 水平拼接
+        query_display_area = np.full((panoramic_height, img_width, 3), 255, dtype=np.uint8)
+        
+        try:
+            query_pil = Image.open(query_image_path).convert("RGB")
+            query_cv = np.array(query_pil)[:, :, ::-1]
+            
+            # 缩放并加上蓝色边框（注意：copyMakeBorder会增加像素，所以resize时先减去边框宽度）
+            resized_query = cv2.resize(query_cv, (img_width - 20, img_height - 20))
+            bordered_query = cv2.copyMakeBorder(resized_query, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=(255, 0, 0))
+            
+            # 将 Query 居中放入左侧展示区的最下方一格
+            start_r = img_height * (row_count - 1)
+            query_display_area[start_r:start_r + img_height, :] = bordered_query
+            cv2.putText(query_display_area, "Query", (10, panoramic_height - 20), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+        except Exception as e:
+            cv2.putText(query_display_area, "Query Load Err", (10, panoramic_height // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+
+        # 返回 [Query区 + 检索结果全景图]
+        return np.hstack([query_display_area, panoramic_image])
+    
+    else:
+        # 💡 如果没有传入 Query 图片，直接返回检索结果全景图
+        return panoramic_image
+
+#######
 
 # 3. 初始化Encoder和Miluvs客户端
 print("--> 初始化Encoder和Mivlus客户端 ing")
@@ -136,9 +170,16 @@ print(f"milvus中集合{COLLECTION_NAME}的索引信息:{index_desc}")
 milvus_client.load_collection(collection_name = COLLECTION_NAME)
 
 # 执行多模态检索(同时传入文本&图片)
-query_text = "查询一条龙"
-query_image_path = image_list[0]
-query_vector = encoder.encode_query(text = query_text, image_path = query_image_path)
+
+#v1版本查询 文字+图片
+# query_text = "查询一个龙"
+# query_image_path = image_list[0]
+# query_vector = encoder.encode_query(text = query_text, image_path = query_image_path)
+
+# v2版本查询 通过文字查询图像
+query_text = "查询一只猴子"
+query_vector = encoder.encode_query(text = query_text)
+query_image_path = None
 
 search_result_list = milvus_client.search(
     collection_name = COLLECTION_NAME,
@@ -161,23 +202,20 @@ if not retrieved_images:
     print("没有检索到图像")   
 else:
     # 把查询的图像 和 检索召回的图像合成一个
-    visualize_result = visualize_results(query_image_path = query_image_path, retrieved_images = retrieved_images)
+    visualize_result = visualize_results(retrieved_images = retrieved_images , query_image_path = query_image_path)
     # 定义输出结果
     combined_image_path = os.path.join(DATA_DIR, "search_result.png")
     cv2.imwrite(combined_image_path, visualize_result)
     print(f"结果图像已保存到: {combined_image_path}")
-    Image.open(combined_image_path).show()
+    Image.open(combined_image_path).show() # 获取结果 调用拼图方法
+
     
-
-
+# clear释放内存 删除集合
 milvus_client.release_collection(collection_name=COLLECTION_NAME)
 print(f"已从内存中释放 Collection: '{COLLECTION_NAME}'")
 milvus_client.drop_collection(COLLECTION_NAME)
 print(f"已删除 Collection: '{COLLECTION_NAME}'")
 
-# 获取结果 调用拼图方法
-
-# clear释放内存 删除集合
 
 
 
@@ -185,87 +223,3 @@ print(f"已删除 Collection: '{COLLECTION_NAME}'")
 
 
 
-
-
-
-
-
-# fields = [
-#     FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
-#     FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=dim),
-#     FieldSchema(name="image_path", dtype=DataType.VARCHAR, max_length=512),
-# ]
-
-# # 创建集合 Schema
-# schema = CollectionSchema(fields, description="多模态图文检索")
-# print("Schema 结构:")
-# print(schema)
-
-# # 创建集合
-# milvus_client.create_collection(collection_name=COLLECTION_NAME, schema=schema)
-# print(f"成功创建 Collection: '{COLLECTION_NAME}'")
-# print("Collection 结构:")
-# print(milvus_client.describe_collection(collection_name=COLLECTION_NAME))
-
-# # 5. 准备并插入数据
-# print(f"\n--> 正在向 '{COLLECTION_NAME}' 插入数据")
-# data_to_insert = []
-# for image_path in tqdm(image_list, desc="生成图像嵌入"):
-#     vector = encoder.encode_image(image_path)
-#     data_to_insert.append({"vector": vector, "image_path": image_path})
-
-# if data_to_insert:
-#     result = milvus_client.insert(collection_name=COLLECTION_NAME, data=data_to_insert)
-#     print(f"成功插入 {result['insert_count']} 条数据。")
-
-# # 6. 创建索引
-# print(f"\n--> 正在为 '{COLLECTION_NAME}' 创建索引")
-# index_params = milvus_client.prepare_index_params()
-# index_params.add_index(
-#     field_name="vector",
-#     index_type="HNSW",
-#     metric_type="COSINE",
-#     params={"M": 16, "efConstruction": 256}
-# )
-# milvus_client.create_index(collection_name=COLLECTION_NAME, index_params=index_params)
-# print("成功为向量字段创建 HNSW 索引。")
-# print("索引详情:")
-# print(milvus_client.describe_index(collection_name=COLLECTION_NAME, index_name="vector"))
-# milvus_client.load_collection(collection_name=COLLECTION_NAME)
-# print("已加载 Collection 到内存中。")
-
-# # 7. 执行多模态检索
-# print(f"\n--> 正在 '{COLLECTION_NAME}' 中执行检索")
-# query_image_path = os.path.join(DATA_DIR, "dragon", "query.png")
-# query_text = "一条龙"
-# query_vector = encoder.encode_query(image_path=query_image_path, text=query_text)
-
-# search_results = milvus_client.search(
-#     collection_name=COLLECTION_NAME,
-#     data=[query_vector],
-#     output_fields=["image_path"],
-#     limit=5,
-#     search_params={"metric_type": "COSINE", "params": {"ef": 128}}
-# )[0]
-
-# retrieved_images = []
-# print("检索结果:")
-# for i, hit in enumerate(search_results):
-#     print(f"  Top {i+1}: ID={hit['id']}, 距离={hit['distance']:.4f}, 路径='{hit['entity']['image_path']}'")
-#     retrieved_images.append(hit['entity']['image_path'])
-
-# # 8. 可视化与清理
-# print(f"\n--> 正在可视化结果并清理资源")
-# if not retrieved_images:
-#     print("没有检索到任何图像。")
-# else:
-#     panoramic_image = visualize_results(query_image_path, retrieved_images)
-#     combined_image_path = os.path.join(DATA_DIR, "search_result.png")
-#     cv2.imwrite(combined_image_path, panoramic_image)
-#     print(f"结果图像已保存到: {combined_image_path}")
-#     Image.open(combined_image_path).show()
-
-# milvus_client.release_collection(collection_name=COLLECTION_NAME)
-# print(f"已从内存中释放 Collection: '{COLLECTION_NAME}'")
-# milvus_client.drop_collection(COLLECTION_NAME)
-# print(f"已删除 Collection: '{COLLECTION_NAME}'")
