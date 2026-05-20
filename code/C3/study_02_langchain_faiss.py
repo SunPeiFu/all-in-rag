@@ -2,6 +2,8 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_core.documents import Document
 
+# FAISS是轻量级的向量库
+
 # 1. 示例文本和嵌入模型
 texts = [
     "张三是法外狂徒",
