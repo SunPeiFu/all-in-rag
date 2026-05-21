@@ -189,6 +189,19 @@ search_result_list = milvus_client.search(
     search_params={"metric_type": "COSINE", "params": {"ef": 128}} # 
 )
 
+"""
+使用V1版本的search_result_list
+[
+    [
+{'id': 466417678321490122, 'distance': 0.9508723616600037, 'entity': {'image_path': '../../data/C3/dragon/dragon05.png'}}, 
+{'id': 466417678321490128, 'distance': 0.656869113445282, 'entity': {'image_path': '../../data/C3/dragon/dragon02.png'}}, 
+{'id': 466417678321490125, 'distance': 0.651395857334137, 'entity': {'image_path': '../../data/C3/dragon/dragon06.png'}}, 
+{'id': 466417678321490126, 'distance': 0.5977749824523926, 'entity': {'image_path': '../../data/C3/dragon/dragon03.png'}}, 
+{'id': 466417678321490123, 'distance': 0.5886130928993225, 'entity': {'image_path': '../../data/C3/dragon/query.png'}}
+    ]
+]
+"""
+
 print(f"查询的结果是: {search_result_list}")
 retrieved_images = []
 if search_result_list:
