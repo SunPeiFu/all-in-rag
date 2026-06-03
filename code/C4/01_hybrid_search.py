@@ -22,7 +22,7 @@ print(f"--> 嵌入模型初始化完成。密集向量维度: {ef.dim['dense']}"
 milvus_client = MilvusClient(uri=MILVUS_URI)
 if milvus_client.has_collection(COLLECTION_NAME):
     print(f"--> 正在删除已存在的 Collection '{COLLECTION_NAME}'...")
-    milvus_client.drop_collection(COLLECTION_NAME)
+milvus_client.drop_collection(COLLECTION_NAME)
 
 fields = [
     FieldSchema(name="pk", dtype=DataType.VARCHAR, is_primary=True, auto_id=True, max_length=100),
