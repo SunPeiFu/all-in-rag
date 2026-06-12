@@ -19,6 +19,7 @@ llm = ChatOpenAI(
     temperature=0
 )
 
+# StrOutputParser -> 解析并返回llm的回答
 # 不同菜系的处理链
 
 # 四川链
@@ -57,8 +58,11 @@ router_branch = RunnableBranch(
 )
 
 # 组合成完整路由链
+# 1 
+# {"topic" : classifier_chain , "question" : lambda x: x["question"]} 释义
+# 多路并行 classifier_chain->返回一个单词 ,question原方不动透传 生成字典 -> {"topic":"川菜", "question":"麻婆豆腐怎么做?"}
 full_router_chain = {"topic" : classifier_chain , "question" : lambda x: x["question"]} | router_branch
-
+# 2 上一步的字典 传递到 -> router_branch 进行类似python中类似 if else的判断
 
 # 3. 运行演示查询
 demo_questions = [
